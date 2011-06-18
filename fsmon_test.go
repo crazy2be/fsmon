@@ -45,7 +45,7 @@ func (sh *SomeHandler) Created(name string) {
 
 const (
 	// gotest only prints the results of t.Log() after the test is completed. However, the tests here often hang when they fail, so you can set this to true to see the output as it comes.
-	DEBUG_HANG = true
+	DEBUG_HANG = false
 )
 
 func tlog(t *testing.T, i ...interface{}) {
@@ -69,8 +69,8 @@ func init() {
 	}
 }
 
-func setupHandler(t *testing.T) (*InotifyWatcher, *SomeHandler) {
-	inw, err := NewInotifyWatcher()
+func setupHandler(t *testing.T) (Watcher, *SomeHandler) {
+	inw, err := NewWatcher()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,10 +176,6 @@ func TestDeleteHandler(t *testing.T) {
 	<- sh.delChan
 	tlog(t, "SUCCESS!")
 }
-
-// func TestCreatedHandler(t *testing.T) {
-// 	
-// }
 
 func TestFolderHandler(t *testing.T) {
 	inw, sh := setupHandler(t)
