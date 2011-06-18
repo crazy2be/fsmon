@@ -1,6 +1,8 @@
 Filesystem Change Monitor
 =========================
 
+	goinstall github.com/crazy2be/fsmon
+
 	import "github.com/crazy2be/fsmon"
 
 	fsmon.AddWatch("foo", fooHandler)
