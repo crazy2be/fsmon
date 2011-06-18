@@ -1,14 +1,12 @@
 package fsmon
 
 import (
+	"log"
+	"os"
 	"os/inotify"
+	"path"
 	"path/filepath"
 )
-
-type dirWatchHandler struct {
-	path string
-	fileWatchers []watchHandler
-}
 
 type watchHandler struct {
 	path string
@@ -16,13 +14,13 @@ type watchHandler struct {
 }
 
 type InotifyWatcher struct {
-	watchHandlers []dirWatchHandler
+	watchHandlers []watchHandler
 	watcher *inotify.Watcher
 }
 
 func NewInotifyWatcher() (*InotifyWatcher, os.Error) {
 	inw := new(InotifyWatcher)
-	inw.watchHandlers = make([]dirWatchHandler)
+	inw.watchHandlers = make([]watchHandler, 0)
 	var err os.Error
 	inw.watcher, err = inotify.NewWatcher()
 	if err != nil {
@@ -43,121 +41,148 @@ func (inw *InotifyWatcher) AddWatch(name string, h Handler) os.Error {
 	if err != nil {
 		return err
 	}
+	
+	var watcher watchHandler
+	
+	watcher.path = name
+	watcher.handler = h
+	
+	inw.watchHandlers = append(inw.watchHandlers, watcher)
+	
+	return nil
 }
 
 // Removes all handlers for a given filename.
-// BUG: Does not remove actual underlying watches, only removes the handlers from the list.
-func (inw *InotifyWatcher) RemoveWatch(relname string) os.Error {
-	name, err := filepath.Abs(relname)
+func (inw *InotifyWatcher) RemoveWatches(name string) os.Error {
+	name, err := filepath.Abs(name)
 	if err != nil {
 		return err
 	}
-	watchHandlers[name] = nil, false
-	rmDirWatch(name)
+	
+	i := inw.watchEntryWithName(name)
+	for i > 0 {
+		inw.removeWatchEntry(i)
+		i = inw.watchEntryWithName(name)
+	}
+	
+	inw.removeDirWatch(name)
+	
 	return nil
+}
+
+func (inw *InotifyWatcher) watchEntryWithName(name string) int {
+	for index, entry := range inw.watchHandlers {
+		if entry.path == name {
+			return index
+		}
+	}
+	return -1
+}
+
+func (inw *InotifyWatcher) removeWatchEntry(index int) {
+	newWatchHandlers := make([]watchHandler, len(inw.watchHandlers)-1)
+	for j := 0; j < index; j++ {
+		newWatchHandlers[j] = inw.watchHandlers[j]
+	}
+	for j := index+1; j < len(newWatchHandlers); j++ {
+		newWatchHandlers[j] = inw.watchHandlers[j+1]
+	}
+	inw.watchHandlers = newWatchHandlers
 }
 
 // Blocks, watching for events forever and calling the appropriate callbacks.
 func (inw *InotifyWatcher) Watch() {
 	//defer theWatcher.Close()
 	select {
-		case ev := <-theWatcher.Event:
-			callCallback(ev)
-		case err := <-theWatcher.Error:
+		case ev := <-inw.watcher.Event:
+			inw.handleCallbacks(ev)
+		case err := <-inw.watcher.Error:
 			log.Println(err)
 	}
 }
 
+func (inw *InotifyWatcher) handleCallbacks(ev *inotify.Event) {
+	name := path.Clean(ev.Name)
+	for _, watch := range inw.watchHandlers {
+		if name == watch.path {
+			inw.handleCallback(ev, name, &watch)
+		}
+	}
+}
+
+func (inw *InotifyWatcher) handleCallback(ev *inotify.Event, name string, wh *watchHandler) {
+	m := ev.Mask
+	switch m {
+		case inotify.IN_MODIFY:
+			c, ok := wh.handler.(ModifiedHandler)
+			if ok {
+				c.Modified(name)
+			}
+		case inotify.IN_DELETE:
+			c, ok := wh.handler.(DeletedHandler)
+			if ok {
+				c.Deleted(name)
+			}
+		default:
+			log.Println("Warning: Unhandled inotify event", ev)
+	}
+}
+
+// Goes through the list of handlers to find out if we are currently watching the given directory (that is, there is a entry for it in the list)
 func (inw *InotifyWatcher) isWatchingDir(name string) bool {
-	for _, dir := range watchedFolders {
-		if dir == name {
+	for _, watchHandler := range inw.watchHandlers {
+		hname, err := getDir(watchHandler.path)
+		if err != nil {
+			return false
+		}
+		if hname == name {
 			return true
 		}
 	}
 	return false
 }
 
-func (inw *InotifyWatcher) callCallback(ev *inotify.Event) {
-	log.Println(ev)
-	log.Println(watchHandlers)
-	log.Println(watchedFolders)
-	name := path.Clean(ev.Name)
-	callbacks, ok := watchHandlers[name]
-	// No handlers exist
-	if !ok {
-		return
-	}
-	for _, callback := range callbacks {
-		m := ev.Mask
-		switch m {
-			case inotify.IN_MODIFY:
-				c, ok := callback.(ModifiedHandler)
-				if !ok {
-					continue;
-				}
-				c.Modified(name)
-			case inotify.IN_DELETE:
-				c, ok := callback.(DeletedHandler)
-				if !ok {
-					continue
-				}
-				c.Deleted(name)
-			default:
-				log.Println("Warning: Unhandled inotify event", ev)
-		}
-	}
-}
-
-// Adds a watch to the directory for the file given by name.
+// Actually adds a watch to the directory for the file given by name on the underlying inotify object, if one does not exist already. Because inotify can watch whole directories, and there is a limit on the number of items one can watch at a time, we always watch directories rather than individual files.
 func (inw *InotifyWatcher) addDirWatch(name string) os.Error {
 	dirname, err := getDir(name)
 	if err != nil {
 		return err
 	}
 	// Are we already watching this directory?
-	if isWatchingDir(dirname) {
+	if inw.isWatchingDir(dirname) {
 		return nil
 	}
 	
-	err = theWatcher.Watch(dirname)
+	err = inw.watcher.Watch(dirname)
 	if err != nil {
 		return err
 	}
-	watchedFolders = append(watchedFolders, dirname)
+	
 	return nil
 }
 
 // Removes a directory watch for the file given by name if no other handlers are in this directory.
-func (inw *InotifyWatcher) rmDirWatch(name string) os.Error {
+func (inw *InotifyWatcher) removeDirWatch(name string) os.Error {
 	dirname, err := getDir(name)
 	if err != nil {
 		return err
 	}
-	if !isWatchingDir(dirname) {
+	
+	if !inw.isWatchingDir(dirname) {
 		return nil
 	}
-	for path, _ := range watchHandlers {
-		if dirname[:] == path[:len(dirname)] {
+	
+	for _, watcher := range inw.watchHandlers {
+		if dirname[:] == watcher.path[:len(dirname)] {
 			// There's still a handler for this folder.
 			return nil
 		}
 	}
-	for i, dir := range watchedFolders {
-		if dir == dirname {
-			newWatchedFolders := make([]string, len(watchedFolders)-1)
-			for j := 0; j < i; j++ {
-				newWatchedFolders[j] = watchedFolders[j]
-			}
-			for j := i+1; j < len(newWatchedFolders); j++ {
-				newWatchedFolders[j] = watchedFolders[j+1]
-			}
-			watchedFolders = newWatchedFolders
-			err = theWatcher.RemoveWatch(dirname)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
+	
+	err = inw.watcher.RemoveWatch(dirname)
+	if err != nil {
+		return err
 	}
+	
 	return nil
 }

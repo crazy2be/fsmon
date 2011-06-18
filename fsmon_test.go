@@ -41,19 +41,18 @@ func init() {
 }
 
 func setupHandler(t *testing.T) *SomeHandler {
-	log.Println("BEFORE")
-	log.Println(watchHandlers)
-	log.Println(watchedFolders)
+	inw, err := NewInotifyWatcher()
+	if err != nil {
+		t.Fatal(err)
+	}
 	sh := NewSomeHandler(t)
-	err := AddHandler(sh, "foo")
-	log.Println("AFTER")
-	log.Println(watchHandlers)
-	log.Println(watchedFolders)
+	err = inw.AddWatch("foo", sh)
 	if err != nil {
 		log.Panic(err)
 		t.Fatal(err)
 	}
 	sh.t = t
+	go inw.Watch()
 	return sh
 }
 
@@ -65,11 +64,9 @@ func TestModifiedHandler(t *testing.T) {
 	}
 	fmt.Fprintln(f, "Hello World")
 	f.Close()
-	go Watch()
 	log.Println("Waiting for modified event...")
 	<- sh.modChan
 	log.Println("SUCCESS!")
-	RemoveHandlers("foo")
 }
 
 func TestDeleteHandler(t *testing.T) {
@@ -81,5 +78,4 @@ func TestDeleteHandler(t *testing.T) {
 	log.Println("Waiting for delete event...")
 	<- sh.delChan
 	log.Println("SUCCESS!")
-	RemoveHandlers("foo")
 }
