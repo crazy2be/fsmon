@@ -1,5 +1,9 @@
-fsmon
-=====
+Filesystem Change Monitor
+=========================
+
+	import "github.com/crazy2be/fsmon"
+
+	fsmon.AddWatch("foo", fooHandler)
 
 Introduction
 ------------
