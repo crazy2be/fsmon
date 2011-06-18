@@ -1,6 +1,11 @@
 Filesystem Change Monitor
 =========================
 
+Introduction
+------------
+The `fsmon` library provides a callback-based API for monitoring changes to files in the filesystem. It is designed to be operating system-agnostic, although it currently only supports inotify as a backend. Supports subscribing to events on files and folders. Events do not propogate recursively; watching `foo` will not let you know when changes to `foo/bar/foobar` occur.
+
+
 Getting Started
 ---------------
 Install it:
@@ -42,10 +47,6 @@ Use it:
 		
 		fsmon.Watch()
 	}
-
-Introduction
-------------
-The `fsmon` library provides a callback-based API for monitoring changes to files in the filesystem. It is designed to be operating system-agnostic, although it currently only supports inotify as a backend.
 
 Adding Support For Other APIs
 -----------------------------
