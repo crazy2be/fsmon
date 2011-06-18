@@ -92,12 +92,14 @@ func (inw *InotifyWatcher) removeWatchEntry(index int) {
 
 // Blocks, watching for events forever and calling the appropriate callbacks.
 func (inw *InotifyWatcher) Watch() {
-	//defer theWatcher.Close()
-	select {
-		case ev := <-inw.watcher.Event:
-			inw.handleCallbacks(ev)
-		case err := <-inw.watcher.Error:
-			log.Println(err)
+	defer inw.watcher.Close()
+	for {
+		select {
+			case ev := <-inw.watcher.Event:
+				inw.handleCallbacks(ev)
+			case err := <-inw.watcher.Error:
+				log.Println(err)
+		}
 	}
 }
 
@@ -116,14 +118,23 @@ func (inw *InotifyWatcher) handleCallback(ev *inotify.Event, name string, wh *wa
 		case inotify.IN_MODIFY:
 			c, ok := wh.handler.(ModifiedHandler)
 			if ok {
+				//log.Println(ev)
 				c.Modified(name)
 			}
 		case inotify.IN_DELETE:
 			c, ok := wh.handler.(DeletedHandler)
 			if ok {
+				//log.Println(ev)
 				c.Deleted(name)
 			}
 		default:
+			if
+				inotify.IN_OPEN & m != 0 ||
+				m & inotify.IN_CLOSE != 0 ||
+				m & inotify.IN_ACCESS != 0 ||
+				m & inotify.IN_CREATE != 0 {
+					return
+			}
 			log.Println("Warning: Unhandled inotify event", ev)
 	}
 }
