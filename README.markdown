@@ -1,9 +1,17 @@
 Filesystem Change Monitor
 =========================
 
+Getting Started
+---------------
+Install it:
+
 	goinstall github.com/crazy2be/fsmon
 
+Import it:
+
 	import "github.com/crazy2be/fsmon"
+
+Use it:
 
 	fsmon.AddWatch("foo", fooHandler)
 
