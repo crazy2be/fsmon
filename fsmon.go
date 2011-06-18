@@ -12,13 +12,33 @@ type Watcher interface {
 	Watch()
 }
 
-var theWatcher Watcher
+var defaultWatcher Watcher
 
 func init() {
-	inw, err := NewInotifyWatcher()
+	var err os.Error
+	defaultWatcher, err = NewWatcher()
 	if err != nil {
-		log.Fatal("fsmon failed to initialize any watchers :(.")
+		log.Fatal(err)
 	}
-	theWatcher = inw
 }
 
+func AddWatch(name string, h Handler) os.Error {
+	return defaultWatcher.AddWatch(name, h)
+}
+
+func RemoveWatches(name string) os.Error {
+	return defaultWatcher.RemoveWatches(name)
+}
+
+func Watch() {
+	defaultWatcher.Watch()
+}
+
+func NewWatcher() (Watcher, os.Error) {
+	inw, err := NewInotifyWatcher()
+	if err == nil {
+		return inw, nil
+	}
+	// TODO: Add more watcher fallbacks here for different operating systems.
+	return os.NewError("fsmon failed to initialize any watchers :(.")
+}
