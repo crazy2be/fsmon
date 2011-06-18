@@ -30,6 +30,7 @@ func getDir(name string) (string, os.Error) {
 		return name, nil
 	}
 	dirname, _ := path.Split(name)
+	dirname = path.Clean(dirname)
 	// Is this second check necessary?
 	isdir, err = isDir(dirname)
 	if err != nil {
