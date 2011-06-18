@@ -40,5 +40,5 @@ func NewWatcher() (Watcher, os.Error) {
 		return inw, nil
 	}
 	// TODO: Add more watcher fallbacks here for different operating systems.
-	return os.NewError("fsmon failed to initialize any watchers :(.")
+	return nil, os.NewError("fsmon failed to initialize any watchers :(.")
 }

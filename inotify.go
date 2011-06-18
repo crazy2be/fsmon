@@ -108,6 +108,8 @@ func (inw *InotifyWatcher) handleCallbacks(ev *inotify.Event) {
 	for _, watch := range inw.watchHandlers {
 		if name == watch.path {
 			inw.handleCallback(ev, name, &watch)
+		} else if dir, _ := getDir(name); watch.path == dir {
+			inw.handleCallback(ev, name, &watch)
 		}
 	}
 }
@@ -127,12 +129,16 @@ func (inw *InotifyWatcher) handleCallback(ev *inotify.Event, name string, wh *wa
 				//log.Println(ev)
 				c.Deleted(name)
 			}
+		case inotify.IN_CREATE:
+			c, ok := wh.handler.(CreatedHandler)
+			if ok {
+				c.Created(name)
+			}
 		default:
 			if
 				inotify.IN_OPEN & m != 0 ||
 				m & inotify.IN_CLOSE != 0 ||
-				m & inotify.IN_ACCESS != 0 ||
-				m & inotify.IN_CREATE != 0 {
+				m & inotify.IN_ACCESS != 0 {
 					return
 			}
 			log.Println("Warning: Unhandled inotify event", ev)

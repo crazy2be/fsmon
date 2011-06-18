@@ -14,6 +14,11 @@ type DeletedHandler interface {
 	Deleted(name string)
 }
 
+type CreatedHandler interface {
+	Handler
+	Created(name string)
+}
+
 // TODO, not implemented
 type MovedHandler interface {
 	Handler
