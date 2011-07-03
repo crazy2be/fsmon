@@ -63,3 +63,8 @@ Each different watcher type (`InotifyWatcher`, `Win32APIWatcher`, etc) needs onl
 `RemoveWatches()` removes all `Handler`s for the path specified. As far as I can see, there is no way to allow someone to remove a specific callback, so this removes all of them.
 
 `Watch()` blocks forever in a loop that listens for events and calls the relevent callbacks. No callbacks will be called before Watch() is called. `AddWatch()` and `RemoveWatches()` should be callable after `Watch()`, and should not be subject to race conditions.
+
+Functions
+---------
+
+Full function reference available at http://gopkgdoc.appspot.com/pkg/github.com/crazy2be/fsmon.
